@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.48"}
-polars = "0.51.0"
+polars = { version = "0.51.0", features = ["lazy","round_series","abs"] }
