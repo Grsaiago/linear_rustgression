@@ -1,0 +1,8 @@
+[package]
+name = "train"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+linear-core =  {path = "../linear_core", version = "0.1.0"}
+polars = { version = "0.51.0", features = ["lazy","round_series","abs"] }

@@ -1,8 +1,6 @@
-[package]
-name = "linear_rustgression"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-clap = { version = "4.5.48"}
-polars = { version = "0.51.0", features = ["lazy","round_series","abs"] }
+[workspace]
+resolver = "3"
+members = [
+	"linear_core",
+	"linear_rustgression", "predict", "train",
+]
