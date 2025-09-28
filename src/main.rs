@@ -7,30 +7,41 @@ struct SlopeIntercept {
 }
 
 struct LinearRegressionModel {
-    slope: f64,
-    intercept: f64,
+    inner: SlopeIntercept,
 }
 
 impl LinearRegressionModel {
+    pub fn new_untrained() -> LinearRegressionModel {
+        LinearRegressionModel {
+            inner: SlopeIntercept {
+                slope: 0.0,
+                intercept: 0.0,
+            },
+        }
+    }
+
     pub fn new(slope: f64, intercept: f64) -> LinearRegressionModel {
-        LinearRegressionModel { slope, intercept }
+        LinearRegressionModel {
+            inner: SlopeIntercept { slope, intercept },
+        }
     }
 
     pub fn slope(&self) -> f64 {
-        self.slope
+        self.inner.slope
     }
 
     pub fn intercept(&self) -> f64 {
-        self.intercept
+        self.inner.intercept
     }
 
     /// é um jeito bonito de 'buscar um ponto na nossa reta'
     /// usando a equação geral da reta y = ax + b
-    fn predict(&self, x: f64) -> f64 {
-        (self.slope * x) + self.intercept
+    pub fn predict(&self, x: f64) -> f64 {
+        (self.slope() * x) + self.intercept()
     }
 
-    fn train(&mut self, mileage: Series, price: Series, learning_rate: f64) {
+    // Um gradiente descendente com a função de custo MSE (Mean Squared Error)
+    pub fn train(&mut self, mileage: Series, price: Series, learning_rate: f64) {
         let max_iteration = 1000;
 
         let new_values = (0..max_iteration).fold(
@@ -63,8 +74,8 @@ impl LinearRegressionModel {
             },
         );
 
-        self.slope = new_values.slope;
-        self.intercept = new_values.intercept;
+        self.inner.slope = new_values.slope;
+        self.inner.intercept = new_values.intercept;
         // iterative
         // for _ in 0..max_iteration {
         //     let current_prediction: Series = &mileage * slope + intercept;
@@ -105,15 +116,22 @@ fn main() {
 
     let mut z_df = z_normalize_dataframe(&lf);
 
-    let normalized_price = z_df.drop_in_place("z_price").unwrap().as_series();
-    let normalized_mileage = z_df.drop_in_place("z_km").unwrap().as_series();
+    let normalized_price: Series = z_df
+        .drop_in_place("z_price")
+        .unwrap()
+        .take_materialized_series();
+    let normalized_mileage = z_df
+        .drop_in_place("z_km")
+        .unwrap()
+        .take_materialized_series();
 
-    let model = gradient_descent(normalized_mileage, normalized_price, 0.01, 1000);
+    let mut model = LinearRegressionModel::new_untrained();
+
+    model.train(normalized_mileage, normalized_price, 0.01);
 
     println!("{:?}", z_df);
 }
 
-// Um gradiente descendente com a função de custo MSE (Mean Squared Error)
 fn gradient_descent(
     mileage: Series,
     price: Series,
