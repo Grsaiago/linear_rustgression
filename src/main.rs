@@ -1,6 +1,95 @@
 use polars::prelude::*;
 use std::path::PathBuf;
 
+struct SlopeIntercept {
+    slope: f64,
+    intercept: f64,
+}
+
+struct LinearRegressionModel {
+    slope: f64,
+    intercept: f64,
+}
+
+impl LinearRegressionModel {
+    pub fn new(slope: f64, intercept: f64) -> LinearRegressionModel {
+        LinearRegressionModel { slope, intercept }
+    }
+
+    pub fn slope(&self) -> f64 {
+        self.slope
+    }
+
+    pub fn intercept(&self) -> f64 {
+        self.intercept
+    }
+
+    /// é um jeito bonito de 'buscar um ponto na nossa reta'
+    /// usando a equação geral da reta y = ax + b
+    fn predict(&self, x: f64) -> f64 {
+        (self.slope * x) + self.intercept
+    }
+
+    fn train(&mut self, mileage: Series, price: Series, learning_rate: f64) {
+        let max_iteration = 1000;
+
+        let new_values = (0..max_iteration).fold(
+            SlopeIntercept {
+                slope: 0.0,
+                intercept: 0.0,
+            },
+            |curr, _| {
+                let current_prediction: Series = &mileage * curr.slope + curr.intercept;
+
+                // mean because we iterate and sum intil number_of_elements and then
+                // divide by number_of_elements, so, a mean
+                let temp_intercept =
+                    (&current_prediction - &price).unwrap().mean().unwrap() * learning_rate;
+
+                // mean because we iterate and sum intil number_of_elements and then
+                // divide by number_of_elements, so, a mean
+                let temp_slope = (&current_prediction - &price)
+                    .unwrap()
+                    .multiply(&mileage)
+                    .unwrap()
+                    .mean()
+                    .unwrap()
+                    * learning_rate;
+
+                SlopeIntercept {
+                    slope: curr.slope - temp_slope,
+                    intercept: curr.intercept - temp_intercept,
+                }
+            },
+        );
+
+        self.slope = new_values.slope;
+        self.intercept = new_values.intercept;
+        // iterative
+        // for _ in 0..max_iteration {
+        //     let current_prediction: Series = &mileage * slope + intercept;
+        //
+        //     // mean because we iterate and sum intil number_of_elements and then
+        //     // divide by number_of_elements, so, a mean
+        //     let temp_intercept =
+        //         (&current_prediction - &price).unwrap().mean().unwrap() * learning_rate;
+        //
+        //     // mean because we iterate and sum intil number_of_elements and then
+        //     // divide by number_of_elements, so, a mean
+        //     let temp_slope = (&current_prediction - &price)
+        //         .unwrap()
+        //         .multiply(&mileage)
+        //         .unwrap()
+        //         .mean()
+        //         .unwrap()
+        //         * learning_rate;
+        //     slope = slope - temp_slope;
+        //     intercept = intercept - temp_intercept;
+        // }
+        // SlopeIntercept::new(slope, intercept)
+    }
+}
+
 fn main() {
     let lf = CsvReadOptions::default()
         .with_has_header(true)
@@ -13,6 +102,66 @@ fn main() {
         .finish()
         .unwrap()
         .lazy();
+
+    let mut z_df = z_normalize_dataframe(&lf);
+
+    let normalized_price = z_df.drop_in_place("z_price").unwrap().as_series();
+    let normalized_mileage = z_df.drop_in_place("z_km").unwrap().as_series();
+
+    let model = gradient_descent(normalized_mileage, normalized_price, 0.01, 1000);
+
+    println!("{:?}", z_df);
+}
+
+// Um gradiente descendente com a função de custo MSE (Mean Squared Error)
+fn gradient_descent(
+    mileage: Series,
+    price: Series,
+    learning_rate: f64,
+    max_iteration: u16,
+) -> LinearRegressionModel {
+    (0..max_iteration).fold(LinearRegressionModel::new(0.0, 0.0), |curr, _| {
+        let current_prediction: Series = &mileage * curr.slope() + curr.intercept();
+
+        // mean because we iterate and sum intil number_of_elements and then
+        // divide by number_of_elements, so, a mean
+        let temp_intercept =
+            (&current_prediction - &price).unwrap().mean().unwrap() * learning_rate;
+
+        // mean because we iterate and sum intil number_of_elements and then
+        // divide by number_of_elements, so, a mean
+        let temp_slope = (&current_prediction - &price)
+            .unwrap()
+            .multiply(&mileage)
+            .unwrap()
+            .mean()
+            .unwrap()
+            * learning_rate;
+
+        LinearRegressionModel::new(curr.slope() - temp_slope, curr.intercept() - temp_intercept)
+    })
+    // iterative
+    // for _ in 0..max_iteration {
+    //     let current_prediction: Series = &mileage * slope + intercept;
+    //
+    //     // mean because we iterate and sum intil number_of_elements and then
+    //     // divide by number_of_elements, so, a mean
+    //     let temp_intercept =
+    //         (&current_prediction - &price).unwrap().mean().unwrap() * learning_rate;
+    //
+    //     // mean because we iterate and sum intil number_of_elements and then
+    //     // divide by number_of_elements, so, a mean
+    //     let temp_slope = (&current_prediction - &price)
+    //         .unwrap()
+    //         .multiply(&mileage)
+    //         .unwrap()
+    //         .mean()
+    //         .unwrap()
+    //         * learning_rate;
+    //     slope = slope - temp_slope;
+    //     intercept = intercept - temp_intercept;
+    // }
+    // SlopeIntercept::new(slope, intercept)
 }
 
 fn z_normalize_dataframe(lf: &LazyFrame) -> DataFrame {
